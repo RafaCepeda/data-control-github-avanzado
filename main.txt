@@ -1,0 +1,3 @@
+Archivo principal del proyecto Data Control.
+Rama: main.
+Autor: Rafa Cepeda Milla.
