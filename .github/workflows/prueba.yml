@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Comparar DEV_TOKEN con LOCAL_DEV_TOKEN
-       shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'"
+        shell: pwsh
         env:
           DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
         run: |
