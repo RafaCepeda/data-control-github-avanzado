@@ -21,3 +21,4 @@ jobs:
             echo ERROR: Los tokens no coinciden.
             exit /b 1
           )
+# Segunda prueba: comprobacion con token local modificado
