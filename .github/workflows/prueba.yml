@@ -10,13 +10,14 @@ jobs:
 
     steps:
       - name: Comparar DEV_TOKEN con LOCAL_DEV_TOKEN
-        shell: pwsh
+        shell: cmd
         env:
           DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
         run: |
-          if ($env:DEV_TOKEN -ceq $env:LOCAL_DEV_TOKEN) {
-            Write-Host "CORRECTO: Los tokens coinciden."
-          } else {
-            Write-Host "ERROR: Los tokens no coinciden."
-            exit 1
-          }
+          @echo off
+          if "%DEV_TOKEN%"=="%LOCAL_DEV_TOKEN%" (
+            echo CORRECTO: Los tokens coinciden.
+          ) else (
+            echo ERROR: Los tokens no coinciden.
+            exit /b 1
+          )
