@@ -1,0 +1,77 @@
+
+name: CD - Main
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Incrementar version
+        run: |
+          python3 - <<'PY'
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          path = Path("README.md")
+          content = path.read_text(encoding="utf-8")
+          match = re.search(r"AppVersion-(\d+)", content)
+
+          if not match:
+              raise SystemExit("No se encontro AppVersion en README.md")
+
+          version = int(match.group(1)) + 1
+          fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+          nueva_linea = f"AppVersion-{version} - {fecha}"
+
+          content = re.sub(
+              r"AppVersion-\d+[^\n]*",
+              nueva_linea,
+              content,
+              count=1
+          )
+          path.write_text(content, encoding="utf-8")
+          PY
+
+      - name: Guardar nueva version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Incrementar version de la aplicacion"
+            git push
+          fi
+
+  validate-prod:
+    needs: update-version
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - name: Validar PROD_TOKEN
+        shell: powershell
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_TOKEN }}
+        run: |
+          if ($env:PROD_TOKEN -ceq $env:LOCAL_PROD_TOKEN) {
+            Write-Host "CORRECTO: Los tokens de produccion coinciden."
+          } else {
+            Write-Host "ERROR: Los tokens de produccion no coinciden."
+            exit 1
+          }
