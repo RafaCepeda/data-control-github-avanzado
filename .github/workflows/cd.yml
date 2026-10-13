@@ -20,10 +20,9 @@ jobs:
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Incrementar version
+        if: github.event_name == 'push'
         run: |
           python3 - <<'PY'
           import re
@@ -35,7 +34,7 @@ jobs:
           match = re.search(r"AppVersion-(\d+)", content)
 
           if not match:
-              raise SystemExit("No se encontro AppVersion en README.md")
+              raise SystemExit("No se encontro AppVersion")
 
           version = int(match.group(1)) + 1
           fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -51,6 +50,7 @@ jobs:
           PY
 
       - name: Guardar nueva version
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -70,8 +70,8 @@ jobs:
           PROD_TOKEN: ${{ secrets.PROD_TOKEN }}
         run: |
           if ($env:PROD_TOKEN -ceq $env:LOCAL_PROD_TOKEN) {
-            Write-Host "CORRECTO: Los tokens de produccion coinciden."
+            Write-Host "CORRECTO: Los tokens coinciden."
           } else {
-            Write-Host "ERROR: Los tokens de produccion no coinciden."
+            Write-Host "ERROR: Los tokens no coinciden."
             exit 1
           }
