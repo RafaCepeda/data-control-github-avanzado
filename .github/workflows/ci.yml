@@ -12,7 +12,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   update-readme:
@@ -20,21 +21,61 @@ jobs:
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Comprobar feature y README
+      - name: Detectar feature fusionada
+        id: feature
+        if: github.event_name == 'push'
         env:
-          FEATURE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          echo "Rama: $FEATURE_BRANCH"
+          PR_NUMBER=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/commits/${COMMIT_SHA}/pulls" \
+            --jq '[.[] | select(.base.ref == "develop" and .merged_at != null and (.head.ref | startswith("feature/")))] | first | .number // empty')
 
-          if [[ "$FEATURE_BRANCH" == feature/* ]]; then
-            LINE="Añadida feature: $FEATURE_BRANCH"
-            echo "$LINE" >> README.md
-            echo "Cambio preparado para README:"
+          if [ -n "$PR_NUMBER" ]; then
+            FEATURE_BRANCH=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
+              --jq '.head.ref')
+
+            echo "branch=$FEATURE_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "Feature detectada: $FEATURE_BRANCH"
+          else
+            echo "No se ha detectado una feature fusionada."
+          fi
+
+      - name: Actualizar README
+        if: steps.feature.outputs.branch != ''
+        env:
+          FEATURE_BRANCH: ${{ steps.feature.outputs.branch }}
+        run: |
+          LINE="Añadida feature: $FEATURE_BRANCH"
+
+          if ! grep -Fxq "$LINE" README.md; then
+            printf '\n%s\n' "$LINE" >> README.md
+            echo "README actualizado:"
             git diff -- README.md
           else
-            echo "No es una rama feature."
+            echo "La feature ya figura en README.md."
           fi
+
+      - name: Crear Pull Request para README
+        if: steps.feature.outputs.branch != ''
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: develop
+          branch: automation/update-readme-develop
+          delete-branch: true
+          commit-message: "docs: actualizar README con feature fusionada"
+          title: "Actualizar README con feature fusionada"
+          body: |
+            Actualización automática del README generada por CI.
+
+            Añade la feature fusionada a develop.
+          add-paths: README.md
 
   validate-dev:
     needs: update-readme
