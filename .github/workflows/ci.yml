@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   update-readme:
@@ -20,27 +20,20 @@ jobs:
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Actualizar README
+      - name: Comprobar feature y README
         env:
           FEATURE_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
-          LINE="Añadida feature: $FEATURE_BRANCH"
-          touch README.md
-          if ! grep -Fxq "$LINE" README.md; then
-            echo "$LINE" >> README.md
-          fi
+          echo "Rama: $FEATURE_BRANCH"
 
-      - name: Guardar cambios
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          if ! git diff --cached --quiet; then
-            git commit -m "Actualizar README con nueva feature"
-            git push
+          if [[ "$FEATURE_BRANCH" == feature/* ]]; then
+            LINE="Añadida feature: $FEATURE_BRANCH"
+            echo "$LINE" >> README.md
+            echo "Cambio preparado para README:"
+            git diff -- README.md
+          else
+            echo "No es una rama feature."
           fi
 
   validate-dev:
