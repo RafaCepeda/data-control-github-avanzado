@@ -1,0 +1,79 @@
+
+name: CD - Main
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Comprobar e incrementar version
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+        id: version
+        run: |
+          python3 - <<'PY'
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          path = Path("README.md")
+          content = path.read_text(encoding="utf-8")
+
+          match = re.search(r"AppVersion-(\d+)", content)
+          if not match:
+              raise SystemExit("No se encontro AppVersion")
+
+          version = int(match.group(1)) + 1
+          fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+          content = re.sub(
+              r"AppVersion-\d+[^\n]*",
+              f"AppVersion-{version} - {fecha}",
+              content,
+              count=1
+          )
+
+          path.write_text(content, encoding="utf-8")
+          PY
+
+      - name: Crear Pull Request de version
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Incrementar version de la aplicacion"
+          branch: automation/version-update
+          delete-branch: true
+          title: "Actualizar version de la aplicacion"
+          body: "Actualizacion automatica de AppVersion en README.md"
+
+  validate-prod:
+    needs: update-version
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - name: Validar PROD_TOKEN
+        shell: powershell
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_TOKEN }}
+        run: |
+          if ($env:PROD_TOKEN -ceq $env:LOCAL_PROD_TOKEN) {
+            Write-Host "CORRECTO: Los tokens coinciden."
+          } else {
+            Write-Host "ERROR: Los tokens no coinciden."
+            exit 1
+          }

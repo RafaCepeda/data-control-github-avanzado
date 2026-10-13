@@ -1,0 +1,53 @@
+
+name: CI - Develop
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Comprobar feature y README
+        env:
+          FEATURE_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          echo "Rama: $FEATURE_BRANCH"
+
+          if [[ "$FEATURE_BRANCH" == feature/* ]]; then
+            LINE="Añadida feature: $FEATURE_BRANCH"
+            echo "$LINE" >> README.md
+            echo "Cambio preparado para README:"
+            git diff -- README.md
+          else
+            echo "No es una rama feature."
+          fi
+
+  validate-dev:
+    needs: update-readme
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - name: Validar DEV_TOKEN
+        shell: powershell
+        env:
+          DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
+        run: |
+          if ($env:DEV_TOKEN -ceq $env:LOCAL_DEV_TOKEN) {
+            Write-Host "CORRECTO: Los tokens coinciden."
+          } else {
+            Write-Host "ERROR: Los tokens no coinciden."
+            exit 1
+          }
