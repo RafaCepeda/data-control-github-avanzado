@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update-version:
@@ -21,8 +22,9 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Incrementar version
-        if: github.event_name == 'push'
+      - name: Comprobar e incrementar version
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+        id: version
         run: |
           python3 - <<'PY'
           import re
@@ -31,34 +33,34 @@ jobs:
 
           path = Path("README.md")
           content = path.read_text(encoding="utf-8")
-          match = re.search(r"AppVersion-(\d+)", content)
 
+          match = re.search(r"AppVersion-(\d+)", content)
           if not match:
               raise SystemExit("No se encontro AppVersion")
 
           version = int(match.group(1)) + 1
           fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-          nueva_linea = f"AppVersion-{version} - {fecha}"
 
           content = re.sub(
               r"AppVersion-\d+[^\n]*",
-              nueva_linea,
+              f"AppVersion-{version} - {fecha}",
               content,
               count=1
           )
+
           path.write_text(content, encoding="utf-8")
           PY
 
-      - name: Guardar nueva version
-        if: github.event_name == 'push'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          if ! git diff --cached --quiet; then
-            git commit -m "Incrementar version de la aplicacion"
-            git push
-          fi
+      - name: Crear Pull Request de version
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Incrementar version de la aplicacion"
+          branch: automation/version-update
+          delete-branch: true
+          title: "Actualizar version de la aplicacion"
+          body: "Actualizacion automatica de AppVersion en README.md"
 
   validate-prod:
     needs: update-version
